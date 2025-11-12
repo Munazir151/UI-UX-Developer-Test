@@ -1,0 +1,29 @@
+{
+  "name": "rf-link-planner",
+  "version": "1.0.0",
+  "description": "A web-based tool for planning point-to-point RF links between towers with Fresnel zone visualization",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "rf",
+    "radio-frequency",
+    "link-planner",
+    "fresnel-zone",
+    "wireless",
+    "mapping",
+    "leaflet"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/rf-link-planner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/rf-link-planner/issues"
+  },
+  "homepage": "https://github.com/yourusername/rf-link-planner#readme"
+}

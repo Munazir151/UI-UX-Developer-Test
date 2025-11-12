@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF Outdoor Link Planner</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>📡 RF Outdoor Link Planner</h1>
+            <p class="subtitle">Plan point-to-point RF links between towers</p>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h2>🗼 Towers</h2>
+                    <div class="mode-selector">
+                        <button id="addTowerBtn" class="btn btn-primary active">
+                            <span>➕</span> Add Tower Mode
+                        </button>
+                        <button id="addLinkBtn" class="btn btn-secondary">
+                            <span>🔗</span> Add Link Mode
+                        </button>
+                    </div>
+                    <div id="towerList" class="tower-list">
+                        <p class="empty-state">Click on the map to add towers</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h2>🔗 Links</h2>
+                    <div id="linkList" class="link-list">
+                        <p class="empty-state">Connect towers with matching frequencies</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-section info-panel">
+                    <h3>ℹ️ Instructions</h3>
+                    <ul>
+                        <li><strong>Add Tower:</strong> Click on map in Add Tower mode</li>
+                        <li><strong>Create Link:</strong> Switch to Link mode, click two towers with matching frequencies</li>
+                        <li><strong>View Fresnel Zone:</strong> Click on a link line</li>
+                        <li><strong>Edit Frequency:</strong> Use the input field in tower list</li>
+                        <li><strong>Delete:</strong> Use the delete button next to each item</li>
+                    </ul>
+                </div>
+            </aside>
+
+            <!-- Map Container -->
+            <div class="map-container">
+                <div id="map"></div>
+                <div class="map-controls">
+                    <div class="status-indicator">
+                        <span id="modeIndicator">Mode: Add Tower</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tower Config Modal -->
+    <div id="towerModal" class="modal">
+        <div class="modal-content">
+            <h3>Configure Tower</h3>
+            <div class="form-group">
+                <label for="towerName">Tower Name:</label>
+                <input type="text" id="towerName" placeholder="Tower 1">
+            </div>
+            <div class="form-group">
+                <label for="towerFrequency">Frequency (GHz):</label>
+                <input type="number" id="towerFrequency" step="0.1" min="0.1" value="5.0">
+            </div>
+            <div class="modal-actions">
+                <button id="saveTowerBtn" class="btn btn-primary">Save</button>
+                <button id="cancelTowerBtn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Link Info Modal -->
+    <div id="linkModal" class="modal">
+        <div class="modal-content">
+            <h3>Link Information</h3>
+            <div id="linkInfo"></div>
+            <div class="modal-actions">
+                <button id="closeLinkBtn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="app.js"></script>
+</body>
+</html>

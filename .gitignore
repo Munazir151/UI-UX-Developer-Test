@@ -1,0 +1,32 @@
+# .gitignore for RF Link Planner
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+
+# Vercel
+.vercel
+
+# Node modules (if any dependencies are added in future)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Temporary files
+*.tmp
+*.temp
