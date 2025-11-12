@@ -13,7 +13,8 @@ const state = {
     towerIdCounter: 1,
     linkIdCounter: 1,
     pendingTowerLocation: null,
-    activeLinkForFresnel: null
+    activeLinkForFresnel: null,
+    confirmAction: null
 };
 
 // ============================================================================
@@ -73,7 +74,7 @@ function saveTower() {
     const frequency = parseFloat(document.getElementById('towerFrequency').value);
     
     if (!name || !frequency || frequency <= 0) {
-        alert('Please enter valid tower details');
+        showNotification('Please enter a valid tower name and frequency.', 'error');
         return;
     }
     
@@ -147,7 +148,7 @@ function handleTowerClickForLink(tower) {
         
         // Check if frequencies match
         if (tower1.frequency !== tower2.frequency) {
-            alert(`Cannot connect towers with different frequencies!\n${tower1.name}: ${tower1.frequency} GHz\n${tower2.name}: ${tower2.frequency} GHz`);
+            showNotification(`Cannot connect towers with different frequencies! (${tower1.frequency} GHz vs ${tower2.frequency} GHz)`, 'error');
             clearTowerSelection();
             return;
         }
@@ -180,7 +181,7 @@ function createLink(tower1, tower2) {
     );
     
     if (exists) {
-        alert('Link already exists between these towers!');
+        showNotification('A link already exists between these towers.', 'error');
         return;
     }
     
@@ -269,7 +270,7 @@ function deleteLink(linkId) {
     updateLinkList();
 }
 
-function updateTowerFrequency(towerId, newFrequency) {
+async function updateTowerFrequency(towerId, newFrequency) {
     const tower = state.towers.find(t => t.id === towerId);
     if (!tower) return;
     
@@ -284,14 +285,22 @@ function updateTowerFrequency(towerId, newFrequency) {
         link.tower1.frequency !== link.tower2.frequency
     );
     
-    if (invalidLinks.length > 0) {
-        const confirmDelete = confirm(`Changing frequency will remove ${invalidLinks.length} link(s) due to frequency mismatch. Continue?`);
-        if (confirmDelete) {
-            invalidLinks.forEach(link => deleteLink(link.id));
+    if (invalidLinks.length > 0) { 
+        const confirmed = await showConfirmationModal(
+            'Frequency Mismatch',
+            `Changing frequency will remove ${invalidLinks.length} link(s). Do you want to continue?`,
+            () => invalidLinks.forEach(link => performDeleteLink(link.id)),
+            true // Return promise
+        );
+
+        if (!confirmed) {
+            // Revert if cancelled
+            const originalFrequency = state.links.find(l => l.tower1.id === towerId || l.tower2.id === towerId)?.frequency || tower.frequency;
+            tower.frequency = originalFrequency;
         }
     }
     
-    updateTowerList();
+    updateTowerList(); // Update UI regardless
 }
 
 // ============================================================================
@@ -431,25 +440,125 @@ function toDegrees(radians) {
 }
 
 // ============================================================================
+// UI Confirmation Modal
+// ============================================================================
+function showConfirmationModal(title, message, onConfirm, returnPromise = false) {
+    const modal = document.getElementById('confirmModal');
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+
+    const confirmBtn = document.getElementById('confirmBtn');
+    const cancelBtn = document.getElementById('cancelConfirmBtn');
+
+    modal.classList.add('show');
+
+    const handleConfirm = () => {
+        if (typeof onConfirm === 'function') {
+            onConfirm();
+        }
+        hideConfirmationModal();
+        if (returnPromise) {
+            state.confirmAction.resolve(true);
+        }
+    };
+
+    const handleCancel = () => {
+        hideConfirmationModal();
+        if (returnPromise) {
+            state.confirmAction.resolve(false);
+        }
+    };
+
+    // Use .cloneNode(true) to remove old event listeners
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    newConfirmBtn.addEventListener('click', handleConfirm);
+
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener('click', handleCancel);
+
+    // Handle promise resolution if needed
+    if (returnPromise) {
+        return new Promise(resolve => {
+            state.confirmAction = { resolve };
+        });
+    }
+}
+
+function hideConfirmationModal() {
+    const modal = document.getElementById('confirmModal');
+    modal.classList.remove('show');
+    state.confirmAction = null;
+}
+
+// ============================================================================
+// UI Theme Management
+// ============================================================================
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.documentElement.style.setProperty('--map-filter', 'brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7)');
+    } else {
+        document.body.classList.remove('dark-mode');
+        document.documentElement.style.setProperty('--map-filter', 'none');
+    }
+    document.getElementById('themeToggle').checked = (theme === 'dark');
+    localStorage.setItem('theme', theme);
+}
+
+// ============================================================================
+// UI Notification System
+// ============================================================================
+function showNotification(message, type = 'info') {
+    const container = document.getElementById('notification-container');
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    const icon = type === 'error' 
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`
+        : '';
+
+    notification.innerHTML = `${icon}<span>${message}</span>`;
+    
+    container.appendChild(notification);
+    
+    // Remove notification after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'fadeOut 0.5s ease forwards';
+        notification.addEventListener('animationend', () => {
+            notification.remove();
+        });
+    }, 3000);
+}
+
+// ============================================================================
 // UI Update Functions
 // ============================================================================
 function updateTowerList() {
     const towerList = document.getElementById('towerList');
     
     if (state.towers.length === 0) {
-        towerList.innerHTML = '<p class="empty-state">Click on the map to add towers</p>';
+        towerList.innerHTML = `
+            <div class="empty-state-card">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                <p>Your map is empty. Click on the map in "Add Tower" mode to place your first tower.</p>
+            </div>
+        `;
         return;
     }
     
     towerList.innerHTML = state.towers.map(tower => {
         const isSelected = state.selectedTowers.some(t => t.id === tower.id);
         return `
-            <div class="tower-item ${isSelected ? 'selected' : ''}">
+            <div class="tower-item list-item-enter ${isSelected ? 'selected' : ''}" data-id="${tower.id}">
                 <div class="tower-header">
                     <span class="tower-name">🗼 ${tower.name}</span>
                     <div class="tower-controls">
-                        <button class="btn btn-danger btn-small" onclick="deleteTower(${tower.id})">
-                            🗑️ Delete
+                        <button class="btn btn-danger btn-small" onclick="requestDeleteTower(${tower.id})" title="Delete Tower">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -477,18 +586,26 @@ function updateLinkList() {
     const linkList = document.getElementById('linkList');
     
     if (state.links.length === 0) {
-        linkList.innerHTML = '<p class="empty-state">Connect towers with matching frequencies</p>';
+        linkList.innerHTML = `
+            <div class="empty-state-card">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
+                <p>No links created yet. Switch to "Add Link" mode and click two towers to connect them.</p>
+            </div>
+        `;
         return;
     }
     
     linkList.innerHTML = state.links.map(link => {
         const isActive = state.activeLinkForFresnel === link.id;
         return `
-            <div class="link-item ${isActive ? 'fresnel-active' : ''}" onclick="showFresnelZone(state.links.find(l => l.id === ${link.id}))">
+            <div class="link-item list-item-enter ${isActive ? 'fresnel-active' : ''}" data-id="${link.id}"
+                 onclick="showFresnelZone(state.links.find(l => l.id === ${link.id}))">
                 <div class="link-header">
                     <span class="link-name">🔗 Link ${link.id}</span>
-                    <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteLink(${link.id})">
-                        🗑️
+                    <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteLink(${link.id}, false)" title="Delete Link">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
                     </button>
                 </div>
                 <div class="link-details">
@@ -538,6 +655,10 @@ function setupEventListeners() {
     
     // Link modal
     document.getElementById('closeLinkBtn').addEventListener('click', hideLinkModal);
+
+    // Theme toggle
+    const themeToggle = document.getElementById('themeToggle');
+    themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'dark' : 'light'));
     
     // Close modals on outside click
     document.getElementById('towerModal').addEventListener('click', function(e) {
@@ -549,6 +670,12 @@ function setupEventListeners() {
     document.getElementById('linkModal').addEventListener('click', function(e) {
         if (e.target === this) {
             hideLinkModal();
+        }
+    });
+
+    document.getElementById('confirmModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideConfirmationModal();
         }
     });
     
@@ -567,12 +694,16 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeMap();
     setupEventListeners();
     setMode('addTower');
+
+    // Initialize theme
+    const preferredTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(preferredTheme);
     
     console.log('RF Link Planner initialized successfully!');
 });
 
 // Make functions globally accessible for inline event handlers
-window.deleteTower = deleteTower;
+window.requestDeleteTower = requestDeleteTower;
 window.deleteLink = deleteLink;
 window.updateTowerFrequency = updateTowerFrequency;
 window.showFresnelZone = showFresnelZone;

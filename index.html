@@ -16,7 +16,17 @@
         <!-- Header -->
         <header class="header">
             <h1>📡 RF Outdoor Link Planner</h1>
-            <p class="subtitle">Plan point-to-point RF links between towers</p>
+            <div class="header-controls">
+                <p class="subtitle">Plan point-to-point RF links between towers</p>
+                <div class="theme-switcher">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                    <label class="switch">
+                        <input type="checkbox" id="themeToggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                </div>
+            </div>
         </header>
 
         <!-- Main Content -->
@@ -27,10 +37,15 @@
                     <h2>🗼 Towers</h2>
                     <div class="mode-selector">
                         <button id="addTowerBtn" class="btn btn-primary active">
-                            <span>➕</span> Add Tower Mode
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                            Add Tower
                         </button>
                         <button id="addLinkBtn" class="btn btn-secondary">
-                            <span>🔗</span> Add Link Mode
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"></path>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"></path>
+                            </svg>
+                            Add Link
                         </button>
                     </div>
                     <div id="towerList" class="tower-list">
@@ -69,6 +84,9 @@
         </div>
     </div>
 
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container"></div>
+
     <!-- Tower Config Modal -->
     <div id="towerModal" class="modal">
         <div class="modal-content">
@@ -95,6 +113,21 @@
             <div id="linkInfo"></div>
             <div class="modal-actions">
                 <button id="closeLinkBtn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h3 id="confirmTitle">Are you sure?</h3>
+            <p id="confirmMessage">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="cancelConfirmBtn" class="btn btn-secondary">Cancel</button>
+                <button id="confirmBtn" class="btn btn-danger">
+                    <span id="confirmBtnText">Confirm</span>
+                    <div class="loading" style="display: none;"></div>
+                </button>
             </div>
         </div>
     </div>
