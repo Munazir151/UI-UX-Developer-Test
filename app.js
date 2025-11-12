@@ -202,7 +202,7 @@ function createLink(tower1, tower2) {
     const polyline = L.polyline(
         [[tower1.lat, tower1.lng], [tower2.lat, tower2.lng]],
         {
-            color: '#22c55e',
+            color: '#3b82f6', // --primary-color
             weight: 3,
             opacity: 0.7
         }
@@ -220,32 +220,40 @@ function createLink(tower1, tower2) {
     updateLinkList();
 }
 
-function deleteTower(towerId) {
-    // Find and remove tower
-    const towerIndex = state.towers.findIndex(t => t.id === towerId);
-    if (towerIndex === -1) return;
-    
-    const tower = state.towers[towerIndex];
-    
-    // Remove associated links
-    const linksToRemove = state.links.filter(link => 
-        link.tower1.id === towerId || link.tower2.id === towerId
+function requestDeleteTower(towerId) {
+    const tower = state.towers.find(t => t.id === towerId);
+    if (!tower) return;
+
+    showConfirmationModal(
+        `Delete Tower: ${tower.name}?`,
+        'This will also remove all connected links. This action cannot be undone.',
+        () => {
+            const towerItem = document.querySelector(`.tower-item[data-id="${towerId}"]`);
+            if (towerItem) {
+                towerItem.classList.add('list-item-exit');
+                towerItem.addEventListener('animationend', () => {
+                    performDeleteTower(towerId);
+                }, { once: true });
+            } else {
+                performDeleteTower(towerId);
+            }
+        }
     );
-    
-    linksToRemove.forEach(link => {
-        deleteLink(link.id);
-    });
-    
-    // Remove marker from map
-    state.map.removeLayer(tower.marker);
-    
-    // Remove from state
-    state.towers.splice(towerIndex, 1);
-    
-    updateTowerList();
 }
 
-function deleteLink(linkId) {
+function performDeleteTower(towerId) {
+    const towerIndex = state.towers.findIndex(t => t.id === towerId);
+    if (towerIndex === -1) return;
+    const tower = state.towers[towerIndex];
+    const linksToRemove = state.links.filter(link => link.tower1.id === towerId || link.tower2.id === towerId);
+    linksToRemove.forEach(link => performDeleteLink(link.id));
+    state.map.removeLayer(tower.marker);
+    state.towers.splice(towerIndex, 1);
+    updateTowerList();
+    updateLinkList();
+}
+
+function deleteLink(linkId, skipConfirm = false) {
     const linkIndex = state.links.findIndex(l => l.id === linkId);
     if (linkIndex === -1) return;
     
@@ -253,13 +261,35 @@ function deleteLink(linkId) {
     
     // Remove polyline from map
     state.map.removeLayer(link.polyline);
-    
-    // Remove Fresnel zone if exists
-    if (link.fresnelZone) {
-        state.map.removeLayer(link.fresnelZone);
+
+    if (skipConfirm) {
+        performDeleteLink(linkId);
+        return;
     }
-    
-    // Remove from state
+
+    showConfirmationModal(
+        `Delete Link ${link.id}?`,
+        `Are you sure you want to remove the link between ${link.tower1.name} and ${link.tower2.name}?`,
+        () => {
+            const linkItem = document.querySelector(`.link-item[data-id="${linkId}"]`);
+            if (linkItem) {
+                linkItem.classList.add('list-item-exit');
+                linkItem.addEventListener('animationend', () => {
+                    performDeleteLink(linkId);
+                }, { once: true });
+            } else {
+                performDeleteLink(linkId);
+            }
+        }
+    );
+}
+
+function performDeleteLink(linkId) {
+    const linkIndex = state.links.findIndex(l => l.id === linkId);
+    if (linkIndex === -1) return;
+    const link = state.links[linkIndex];
+    if (link.polyline) state.map.removeLayer(link.polyline);
+    if (link.fresnelZone) state.map.removeLayer(link.fresnelZone);
     state.links.splice(linkIndex, 1);
     
     // Clear active Fresnel if this was it
@@ -306,16 +336,18 @@ async function updateTowerFrequency(towerId, newFrequency) {
 // ============================================================================
 // Fresnel Zone Calculation and Visualization
 // ============================================================================
-async function showFresnelZone(link) {
-    // Clear previous Fresnel zone
-    if (state.activeLinkForFresnel) {
-        const prevLink = state.links.find(l => l.id === state.activeLinkForFresnel);
-        if (prevLink && prevLink.fresnelZone) {
-            state.map.removeLayer(prevLink.fresnelZone);
-            prevLink.fresnelZone = null;
-        }
+function showFresnelZone(link) {
+    // If the clicked link is already active, deactivate it (toggle off)
+    if (state.activeLinkForFresnel === link.id) {
+        deactivateActiveFresnelZone();
+        return;
     }
-    
+
+    // If another link is active, deactivate it first
+    if (state.activeLinkForFresnel !== null) {
+        deactivateActiveFresnelZone();
+    }
+
     state.activeLinkForFresnel = link.id;
     
     // Calculate Fresnel zone
@@ -339,18 +371,10 @@ async function showFresnelZone(link) {
         link.tower2.lat, link.tower2.lng
     );
     
-    // Create Fresnel zone ellipse
-    const fresnelZone = L.ellipse(center, {
-        semiMajor: distance * 1000 / 2, // Convert to meters
-        semiMinor: maxRadius,
-        tilt: bearing,
-        color: '#22c55e',
-        fillColor: '#22c55e',
-        fillOpacity: 0.15,
-        weight: 2,
-        opacity: 0.5
-    }).addTo(state.map);
+    // Create Fresnel zone polygon (approximating an ellipse)
+    const fresnelZone = createEllipsePolygon(center, distance * 1000 / 2, maxRadius, bearing).addTo(state.map);
     
+    link.polyline.setStyle({ color: '#16a34a' }); // --success-color
     link.fresnelZone = fresnelZone;
     
     // Show link info modal
@@ -370,10 +394,10 @@ function showLinkInfoModal(link, fresnelRadius) {
             <div><strong>Link:</strong> ${link.tower1.name} ↔ ${link.tower2.name}</div>
             <div><strong>Distance:</strong> ${(link.distance).toFixed(2)} km</div>
             <div><strong>Frequency:</strong> ${link.frequency} GHz</div>
-            <div><strong>Wavelength:</strong> ${(wavelength * 1000).toFixed(2)} mm</div>
-            <div><strong>Max Fresnel Radius:</strong> ${fresnelRadius.toFixed(2)} m</div>
-            <div style="margin-top: 1rem; padding: 0.75rem; background: #f0fdf4; border-radius: 6px; border: 1px solid #22c55e;">
-                <strong>Fresnel Zone Formula:</strong><br>
+            <div class="info-highlight"><strong>Wavelength:</strong> ${(wavelength * 1000).toFixed(2)} mm</div>
+            <div class="info-highlight"><strong>Max Fresnel Radius:</strong> ${fresnelRadius.toFixed(2)} m</div>
+            <div class="formula-box">
+                <strong>Formula:</strong><br>
                 r = √((λ × d₁ × d₂) / (d₁ + d₂))<br>
                 <small>Where λ = c/f, c = 3×10⁸ m/s</small>
             </div>
@@ -386,6 +410,17 @@ function showLinkInfoModal(link, fresnelRadius) {
 function hideLinkModal() {
     const modal = document.getElementById('linkModal');
     modal.classList.remove('show');
+}
+
+function deactivateActiveFresnelZone() {
+    const prevLink = state.links.find(l => l.id === state.activeLinkForFresnel);
+    if (prevLink && prevLink.fresnelZone) {
+        state.map.removeLayer(prevLink.fresnelZone);
+        prevLink.polyline.setStyle({ color: '#3b82f6' }); // Revert color to primary
+        prevLink.fresnelZone = null;
+    }
+    state.activeLinkForFresnel = null;
+    updateLinkList();
 }
 
 // ============================================================================
@@ -422,13 +457,20 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 function calculateBearing(lat1, lon1, lat2, lon2) {
-    const dLon = toRadians(lon2 - lon1);
-    const y = Math.sin(dLon) * Math.cos(toRadians(lat2));
-    const x = Math.cos(toRadians(lat1)) * Math.sin(toRadians(lat2)) -
-              Math.sin(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.cos(dLon);
+    // Correctly calculate the initial bearing from point 1 to point 2
+    const lat1Rad = toRadians(lat1);
+    const lat2Rad = toRadians(lat2);
+    const lonDiffRad = toRadians(lon2 - lon1);
+
+    const y = Math.sin(lonDiffRad) * Math.cos(lat2Rad);
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+              Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(lonDiffRad);
     
     const bearing = Math.atan2(y, x);
-    return toDegrees(bearing);
+
+    // Convert bearing from -180 to +180 range to 0 to 360 range
+    // and return as degrees.
+    return (toDegrees(bearing) + 360) % 360;
 }
 
 function toRadians(degrees) {
@@ -437,6 +479,30 @@ function toRadians(degrees) {
 
 function toDegrees(radians) {
     return radians * 180 / Math.PI;
+}
+
+function createEllipsePolygon(center, semiMajor, semiMinor, bearing, points = 64) {
+    const latlngs = [];
+    const centerPt = state.map.latLngToLayerPoint(center);
+    const bearingRad = toRadians(-bearing); // Convert bearing to radians for trig functions
+
+    for (let i = 0; i < points; i++) {
+        const angle = (i / points) * 2 * Math.PI;
+        const x = semiMinor * Math.cos(angle);
+        const y = semiMajor * Math.sin(angle);
+
+        // Rotate the point
+        const rotatedX = centerPt.x + x * Math.cos(bearingRad) - y * Math.sin(bearingRad);
+        const rotatedY = centerPt.y + x * Math.sin(bearingRad) + y * Math.cos(bearingRad);
+
+        latlngs.push(state.map.layerPointToLatLng([rotatedX, rotatedY]));
+    }
+
+    return L.polygon(latlngs, {
+        color: '#16a34a', // --success-color
+        fillColor: '#16a34a',
+        fillOpacity: 0.15,
+        weight: 2 });
 }
 
 // ============================================================================
@@ -704,7 +770,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Make functions globally accessible for inline event handlers
 window.requestDeleteTower = requestDeleteTower;
-window.deleteLink = deleteLink;
+window.deleteLink = function(linkId, skipConfirm = false) {
+    const link = state.links.find(l => l.id === linkId);
+    if (!link) return;
+    if (skipConfirm) {
+        performDeleteLink(linkId);
+        return;
+    }
+    showConfirmationModal(
+        `Delete Link ${link.id}?`,
+        `Are you sure you want to remove the link between ${link.tower1.name} and ${link.tower2.name}?`,
+        () => performDeleteLink(linkId)
+    );
+};
 window.updateTowerFrequency = updateTowerFrequency;
 window.showFresnelZone = showFresnelZone;
 window.state = state;
