@@ -753,6 +753,45 @@ function setupEventListeners() {
     });
 }
 
+function setupResizer() {
+    const resizer = document.getElementById('resizer');
+    const sidebar = document.querySelector('.sidebar');
+
+    let isResizing = false;
+    let startX, startWidth;
+
+    resizer.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = parseInt(document.defaultView.getComputedStyle(sidebar).width, 10);
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    });
+
+    function handleMouseMove(e) {
+        if (!isResizing) return;
+        const dx = e.clientX - startX;
+        const newWidth = startWidth + dx;
+
+        // Set constraints for sidebar width
+        if (newWidth > 250 && newWidth < 600) {
+            sidebar.style.width = newWidth + 'px';
+            // Invalidate map size to force Leaflet to re-render correctly
+            if (state.map) {
+                state.map.invalidateSize();
+            }
+        }
+    }
+
+    function handleMouseUp() {
+        isResizing = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }
+}
+
 // ============================================================================
 // Initialization
 // ============================================================================
@@ -760,6 +799,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeMap();
     setupEventListeners();
     setMode('addTower');
+    setupResizer();
 
     // Initialize theme
     const preferredTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');

@@ -410,6 +410,20 @@ body {
     padding-left: 0.5rem;
 }
 
+/* Resizer Handle */
+.resizer {
+    flex-shrink: 0;
+    width: 5px;
+    background-color: var(--border-color);
+    cursor: col-resize;
+    transition: background-color 0.2s ease;
+    z-index: 5; /* Ensure it's above the map but below modals */
+}
+
+.resizer:hover {
+    background-color: var(--primary-color);
+}
+
 /* Map Container */
 .map-container {
     flex: 1;
